@@ -4,7 +4,7 @@ from langchain_groq import ChatGroq
 
 
 class SQLGenerator:
-    def __init__(self, model_name: str = "qwen-2.5-coder-32b"):
+    def __init__(self, model_name: str = "openai/gpt-oss-120b"):
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise ValueError("GROQ_API_KEY environment variable is missing.")

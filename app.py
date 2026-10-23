@@ -1,4 +1,5 @@
-﻿import re
+﻿import os
+import re
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
@@ -11,6 +12,94 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 import streamlit as st
+import requests
+
+
+
+st.set_page_config(page_title="Multi-Mode AI Agent", layout="wide")
+
+app_mode = st.sidebar.radio(
+    "Choose Mode:",
+    ["💻 Code Assistant", "🎙️ Voice Data Analyst"],
+)
+
+if app_mode == "🎙️ Voice Data Analyst":
+    st.title("🎙️ Voice-Based Data Analysis Engine")
+    st.caption("Upload a dataset, record a question, and review the analysis results.")
+    api_url = os.getenv("VOICE_API_URL", "http://127.0.0.1:8000").rstrip("/")
+
+    selected_lang_label = st.selectbox(
+        "Select spoken language:",
+        ["Auto Detect", "Arabic (العربية)", "English"],
+        key="voice_language",
+    )
+    chosen_language = {
+        "Auto Detect": "auto",
+        "Arabic (العربية)": "ar",
+        "English": "en",
+    }[selected_lang_label]
+
+    dataset_file = st.file_uploader(
+        "Upload a dataset",
+        type=["csv", "xlsx", "xls", "json"],
+        key="voice_dataset",
+    )
+    if dataset_file is not None and st.button("Load dataset", type="primary"):
+        try:
+            response = requests.post(
+                f"{api_url}/upload-dataset",
+                files={"dataset_file": (dataset_file.name, dataset_file.getvalue(), dataset_file.type)},
+                timeout=120,
+            )
+            response.raise_for_status()
+            st.session_state.voice_dataset_info = response.json()
+            st.session_state.voice_analysis = None
+            st.success(f"Loaded {dataset_file.name}")
+        except requests.RequestException as exc:
+            detail = exc.response.text if exc.response is not None else str(exc)
+            st.error(f"Could not load dataset: {detail}")
+
+    dataset_info = st.session_state.get("voice_dataset_info")
+    if dataset_info:
+        st.success(
+            f"Dataset ready: {dataset_info['row_count']} rows · "
+            f"table `{dataset_info['table_name']}`"
+        )
+        st.caption(f"Columns: {', '.join(dataset_info['columns'])}")
+        with st.expander("Dataset preview"):
+            st.dataframe(dataset_info["sample_records"], use_container_width=True)
+
+        audio = st.audio_input("Record your data question", key="voice_question")
+        if audio is not None and st.button("Analyze recording", type="primary"):
+            with st.spinner("Transcribing your question and analyzing the dataset..."):
+                try:
+                    response = requests.post(
+                        f"{api_url}/analyze-voice",
+                        files={"audio_file": ("question.wav", audio.getvalue(), audio.type or "audio/wav")},
+                        data={"language": chosen_language},
+                        timeout=300,
+                    )
+                    response.raise_for_status()
+                    st.session_state.voice_analysis = response.json()
+                except requests.RequestException as exc:
+                    detail = exc.response.text if exc.response is not None else str(exc)
+                    st.error(f"Analysis request failed: {detail}")
+
+    analysis = st.session_state.get("voice_analysis")
+    if analysis:
+        st.subheader("Recognized question")
+        st.write(analysis["transcription"])
+        st.caption(
+            f"Detected language: {analysis['language_used']} · "
+            f"Confidence: {analysis['language_probability']}"
+        )
+        st.subheader("Generated SQL")
+        st.code(analysis["sql"], language="sql")
+        st.subheader("Results")
+        st.dataframe(analysis["rows"], use_container_width=True)
+        if analysis["truncated"]:
+            st.caption("Showing the first 500 result rows.")
+    st.stop()
 
 from src import llm
 from src import rag
@@ -24,35 +113,6 @@ from src.prompts import (
     SOLUTION_DETECTION_PROMPT,
 )
 
-st.set_page_config(page_title="Multi-Mode AI Agent", layout="wide")
-
-app_mode = st.sidebar.radio(
-    "Choose Mode:",
-    ["Code Assistant", "Voice Data Analyst"],
-)
-
-
-selected_lang_label = st.selectbox(
-    "🎙️ Select Spoken Language:",
-    ["Auto Detect", "Arabic (العربية)", "English"]
-)
-
-# Map UI selection to Whisper language codes
-lang_code_map = {
-    "Auto Detect": "auto",
-    "Arabic (العربية)": "ar",
-    "English": "en"
-}
-
-chosen_language = lang_code_map[selected_lang_label]
-
-
-if app_mode == "Voice Data Analyst":
-    st.title("Voice-Based Data Analysis Engine")
-    st.caption("Upload a dataset and record your analysis request.")
-    st.file_uploader("Upload a dataset", type=["csv", "xlsx", "xls", "json", "parquet"])
-    st.audio_input("Record your analysis request")
-    st.stop()
 
 CODE_BLOCK = re.compile(r"```([^\r\n`]*)\r?\n(.*?)```", re.S)
 
@@ -194,7 +254,7 @@ with st.sidebar:
         st.rerun()
 
 # ---------------------------------------------------------------- main UI
-st.title("Code Assistant Pipeline")
+st.title("💻 Code Assistant Pipeline")
 st.caption("Explain code · Generate code with RAG")
 
 for idx, m in enumerate(st.session_state.messages):
@@ -251,3 +311,8 @@ if prompt:
             memory.add_turn(prompt, reply, code=generated_code)
         st.session_state.messages.append({"role": "assistant", "content": reply, "meta": meta})
         render_run_buttons(reply, f"new{len(st.session_state.messages)}")
+
+
+
+
+
