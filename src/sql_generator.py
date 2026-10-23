@@ -23,7 +23,6 @@ class SQLGenerator:
                 1. The user request may be in English or Arabic. Understand both and generate the exact SQL needed.
                 2. Use ONLY the provided table name and schema column names.
                 3. Output ONLY the raw SQL query inside a ```sql ... ``` code block. Do NOT include explanations before or after the code block.
-                4. Only generate read-only SELECT queries. Do not generate DROP, DELETE, or UPDATE statements.
                 
                 Target Table Name: {table_name}
                 
