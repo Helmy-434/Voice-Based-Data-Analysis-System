@@ -31,6 +31,22 @@ app_mode = st.sidebar.radio(
     ["Code Assistant", "Voice Data Analyst"],
 )
 
+
+selected_lang_label = st.selectbox(
+    "🎙️ Select Spoken Language:",
+    ["Auto Detect", "Arabic (العربية)", "English"]
+)
+
+# Map UI selection to Whisper language codes
+lang_code_map = {
+    "Auto Detect": "auto",
+    "Arabic (العربية)": "ar",
+    "English": "en"
+}
+
+chosen_language = lang_code_map[selected_lang_label]
+
+
 if app_mode == "Voice Data Analyst":
     st.title("Voice-Based Data Analysis Engine")
     st.caption("Upload a dataset and record your analysis request.")
