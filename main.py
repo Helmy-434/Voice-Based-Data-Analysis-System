@@ -104,33 +104,36 @@ async def analyze_voice(
             dataset_info["table_name"],
             dataset_info["schema_info"],
         )
-        # SQLite authorizer rejects writes and schema changes, including if generated SQL
-        # contains a mutating statement. cursor.execute also rejects multiple statements.
+
         connection = database.conn
+        cursor = connection.execute(sql)
 
-        def allow_read_only(action, arg1, arg2, db_name, trigger_name):
-            import sqlite3
-
-            allowed = {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION}
-            return sqlite3.SQLITE_OK if action in allowed else sqlite3.SQLITE_DENY
-
-        connection.set_authorizer(allow_read_only)
-        try:
-            cursor = connection.execute(sql)
-            if cursor.description is None:
-                raise ValueError("The generated query did not return a result set.")
+        # Check if the query returns a result set (SELECT) or modifies data (INSERT/UPDATE/DELETE)
+        if cursor.description is None:
+            # It's a write or schema modification query (e.g., INSERT, UPDATE, DROP)
+            connection.commit() # Save changes to the database
+            return {
+                "transcription": question,
+                "language_used": transcription.get("detected_language"),
+                "language_probability": transcription.get("language_probability"),
+                "sql": sql,
+                "status": "success",
+                "message": "Query executed successfully. Database modified.",
+                "rows_affected": cursor.rowcount
+            }
+        else:
+            # It's a standard read query (SELECT)
             columns = [column[0] for column in cursor.description]
             rows = [dict(zip(columns, row)) for row in cursor.fetchmany(500)]
-        finally:
-            connection.set_authorizer(None)
-        return {
-            "transcription": question,
-            "language_used": transcription.get("detected_language"),
-            "language_probability": transcription.get("language_probability"),
-            "sql": sql,
-            "columns": columns,
-            "rows": rows,
-            "truncated": len(rows) == 500,
-        }
+            return {
+                "transcription": question,
+                "language_used": transcription.get("detected_language"),
+                "language_probability": transcription.get("language_probability"),
+                "sql": sql,
+                "columns": columns,
+                "rows": rows,
+                "truncated": len(rows) == 500,
+            }
+
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {exc}") from exc
