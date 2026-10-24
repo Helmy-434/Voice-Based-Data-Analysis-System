@@ -3,18 +3,13 @@ from faster_whisper import WhisperModel
 
 class SpeechToText:
     def __init__(self, model_size: str = "base", device: str = "cpu"):
-        """
-        Initializes Faster-Whisper speech-to-text pipeline.
-        Supported sizes: 'tiny' (~75MB), 'base' (~140MB), 'small' (~460MB), 
-                         'medium' (~1.5GB), 'large-v3-turbo' (~1.6GB)
-        """
         self.model_size = model_size
         self.device = device
         self._model = None
 
     @property
     def model(self):
-        # Lazy loads the model into memory on the first request
+        # Lazy loads the model into memory
         if self._model is None:
             self._model = WhisperModel(
                 self.model_size, 
@@ -27,7 +22,6 @@ class SpeechToText:
         if not os.path.exists(audio_file_path):
             raise FileNotFoundError(f"Audio file not found at {audio_file_path}")
 
-        # If language is 'auto' or empty, pass None to trigger Whisper auto-detection
         lang = None if language in ["auto", None, ""] else language.lower()
 
         segments, info = self.model.transcribe(
