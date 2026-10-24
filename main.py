@@ -108,9 +108,8 @@ async def analyze_voice(
         connection = database.conn
         cursor = connection.execute(sql)
 
-        # Check if the query returns a result set (SELECT) or modifies data (INSERT/UPDATE/DELETE)
+        # Check if the query returns a result set or modifies data 
         if cursor.description is None:
-            # It's a write or schema modification query (e.g., INSERT, UPDATE, DROP)
             connection.commit() # Save changes to the database
             return {
                 "transcription": question,
@@ -122,7 +121,6 @@ async def analyze_voice(
                 "rows_affected": cursor.rowcount
             }
         else:
-            # It's a standard read query (SELECT)
             columns = [column[0] for column in cursor.description]
             rows = [dict(zip(columns, row)) for row in cursor.fetchmany(500)]
             return {
