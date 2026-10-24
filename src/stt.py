@@ -2,11 +2,11 @@ import os
 from faster_whisper import WhisperModel
 
 class SpeechToText:
-    def __init__(self, whisper_size: str = "base", device: str = "cpu"):
-        self.whisper_size = whisper_size
+    def __init__(self, model_size: str = "base", device: str = "cpu"):  # Changed parameter name to model_size
+        self.whisper_size = model_size
         self.device = device
         
-        # Lazy initialization to save RAM/GPU memory
+        # Lazy initialization
         self._whisper = None
         self._qwencleo = None
 
@@ -29,7 +29,7 @@ class SpeechToText:
 
         lang = (language or "auto").lower()
 
-        # Explicit Arabic -> QwenCleo-ASR
+        # 1. Explicit Arabic -> QwenCleo-ASR
         if lang == "ar":
             res = self.qwencleo.transcribe(audio_file_path, language="Arabic")
             text = res.text if hasattr(res, "text") else str(res)
@@ -39,7 +39,7 @@ class SpeechToText:
                 "engine_used": "QwenCleo-ASR"
             }
 
-        # Explicit English -> Faster-Whisper
+        # 2. Explicit English -> Faster-Whisper
         elif lang == "en":
             segments, info = self.whisper.transcribe(audio_file_path, language="en", beam_size=5, vad_filter=True)
             text = " ".join([segment.text for segment in segments]).strip()
@@ -49,7 +49,7 @@ class SpeechToText:
                 "engine_used": "Faster-Whisper"
             }
 
-        # Auto-Detect Mode -> Detect with Whisper, route Arabic to QwenCleo
+        # 3. Auto-Detect Mode
         else:
             segments, info = self.whisper.transcribe(audio_file_path, beam_size=5, vad_filter=True)
             detected_lang = info.language
